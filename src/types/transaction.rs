@@ -57,7 +57,7 @@ impl Transaction {
                 match &self.from {
                     Some(from) => {
                         if from == to {
-                            return Err("Transfer .".to_string());
+                            return Err("Transfer to yourself.".to_string());
                         }
                         match state.get_account_by_id_mut(from.clone()) {
                             Some(sender) => {

@@ -288,10 +288,10 @@ mod tests {
         block.add_transaction(tx_create_alice);
         block.add_transaction(tx_create_bob);
 
+        assert!(bc.append_block(block).is_ok());
         assert!(bc.get_account_by_id("satoshi".to_string()).is_some());
         assert!(bc.get_account_by_id("alice".to_string()).is_some());
         assert!(bc.get_account_by_id("bob".to_string()).is_some());
-        assert!(bc.append_block(block).is_ok());
 
         let mut block = Block::new(bc.get_last_block_hash());
 
@@ -325,8 +325,30 @@ mod tests {
         block.add_transaction(tx_tr_from_bob_to_sastoshi);
 
         assert!(bc.append_block(block).is_ok());
-        // assert!(bc.get_account_by_id("alice".to_string()).is_none());
-        // assert!(bc.get_account_by_id("bob".to_string()).is_none());
+
+        let alice_new_account = bc.get_account_by_id("alice".to_string());
+        if alice_new_account.is_some() {
+            assert_eq!(
+                alice_new_account.unwrap().balance,
+                10_000_000
+            )
+        }
+
+        let bob_new_account = bc.get_account_by_id("bob".to_string());
+        if bob_new_account.is_some() {
+            assert_eq!(
+                bob_new_account.unwrap().balance,
+                20_000_000
+            )
+        }
+
+        let satpshi_new_account = bc.get_account_by_id("satoshi".to_string());
+        if satpshi_new_account.is_some() {
+            assert_eq!(
+                satpshi_new_account.unwrap().balance,
+                70_000_000
+            )
+        }
     }
 
     #[test]
@@ -379,32 +401,71 @@ mod tests {
         );
         block.set_nonce(3);
         block.add_transaction(tx_tr_self);
-        assert!(bc.append_block(block).is_err());
+
+
+        assert_eq!(
+            bc.append_block(block).err().unwrap(),
+            "Error during tx execution: Transfer to yourself.".to_string()
+        );
 
         let mut block = Block::new(bc.get_last_block_hash());
         let tx_tr_gt_balance = Transaction::new(
             TransactionData::Transfer{
-                to: "satoshi".to_string(),
+                to: "bob".to_string(),
                 amount: 100_000_000_000,
             },
             Some("satoshi".to_string())
         );
-        block.set_nonce(4);
+        block.set_nonce(3);
         block.add_transaction(tx_tr_gt_balance);
-        assert!(bc.append_block(block).is_err());
+        assert_eq!(
+            bc.append_block(block).err().unwrap(),
+            "Error during tx execution: Sender doesn't have enough currency.".to_string()
+        );
 
         let mut block = Block::new(bc.get_last_block_hash());
-        let tx_tr_from_satoshi_to_invalid_account = Transaction::new(
+        let tx_tr_from_satoshi_to_invalid = Transaction::new(
             TransactionData::Transfer{
                 to: "invalid".to_string(),
                 amount: 1,
             },
             Some("satoshi".to_string())
         );
-        block.set_nonce(5);
-        block.add_transaction(tx_tr_from_satoshi_to_invalid_account);
-        assert!(bc.append_block(block).is_err());
-        // assert!(bc.get_account_by_id("alice".to_string()).is_none());
-        // assert!(bc.get_account_by_id("bob".to_string()).is_none());
+        block.set_nonce(3);
+        block.add_transaction(tx_tr_from_satoshi_to_invalid);
+        assert_eq!(
+            bc.append_block(block).err().unwrap(),
+            "Error during tx execution: Invalid receiver account.".to_string()
+        );
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        let tx_tr_from_invalid_to_satoshi = Transaction::new(
+            TransactionData::Transfer{
+                to: "satoshi".to_string(),
+                amount: 1,
+            },
+            Some("invalid".to_string())
+        );
+        block.set_nonce(3);
+        block.add_transaction(tx_tr_from_invalid_to_satoshi);
+        assert_eq!(
+            bc.append_block(block).err().unwrap(),
+            "Error during tx execution: Invalid sender account.".to_string()
+        );
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        let tx_tr_from_invalid_to_satoshi = Transaction::new(
+            TransactionData::Transfer{
+                to: "bob".to_string(),
+                amount: 1,
+            },
+            None
+        );
+        block.set_nonce(3);
+        block.add_transaction(tx_tr_from_invalid_to_satoshi);
+        assert_eq!(
+            bc.append_block(block).err().unwrap(),
+            "Error during tx execution: Invalid sender account id.".to_string()
+        );
     }
 }
