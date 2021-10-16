@@ -116,7 +116,7 @@ impl Blockchain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::TransactionData;
+    use crate::types::{Balance, TransactionData};
     use crate::utils::{append_block, append_block_with_tx};
 
     #[test]
