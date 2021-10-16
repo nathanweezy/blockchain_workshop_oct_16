@@ -53,7 +53,34 @@ impl Transaction {
             // 2. Check sender balance
             // 3. Change sender/receiver balances and save to state
             // 4. Test
-            TransactionData::Transfer { to, amount } => Ok(()),
+            TransactionData::Transfer { to, amount } => {
+                match &self.from {
+                    Some(from) => {
+                        if from == to {
+                            return Err("Transfer .".to_string());
+                        }
+                        match state.get_account_by_id_mut(from.clone()) {
+                            Some(sender) => {
+                                match sender.balance {
+                                    balance if &balance >= amount => {
+                                        sender.balance -= amount;
+                                        match state.get_account_by_id_mut(to.clone()) {
+                                            Some(receiver) => {
+                                                receiver.balance += amount;
+                                                Ok(())
+                                            },
+                                            None => Err("Invalid receiver account.".to_string()),
+                                        }
+                                    },
+                                    _ => Err("Sender doesn't have enough currency.".to_string()),
+                                }
+                            },
+                            None => Err("Invalid sender account.".to_string()),
+                        }
+                    }
+                    None => Err("Invalid sender account id.".to_string()),
+                }
+            }
         }
     }
 }

@@ -252,4 +252,159 @@ mod tests {
 
         assert!(bc.validate().is_err());
     }
+
+    #[test]
+    fn test_transfers() {
+        let mut bc = Blockchain::new();
+
+        let tx_create_account = Transaction::new(
+            TransactionData::CreateAccount("satoshi".to_string()),
+            None
+        );
+        let tx_mint_initial_supply = Transaction::new(
+            TransactionData::MintInitialSupply {
+                to: "satoshi".to_string(),
+                amount: 100_000_000,
+            },
+            None,
+        );
+        let mut block = Block::new(None);
+        block.set_nonce(1);
+        block.add_transaction(tx_create_account);
+        block.add_transaction(tx_mint_initial_supply);
+
+        assert!(bc.append_block(block).is_ok());
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        let tx_create_alice = Transaction::new(
+            TransactionData::CreateAccount("alice".to_string()),
+            None
+        );
+        let tx_create_bob = Transaction::new(
+            TransactionData::CreateAccount("bob".to_string()),
+            None
+        );
+        block.set_nonce(2);
+        block.add_transaction(tx_create_alice);
+        block.add_transaction(tx_create_bob);
+
+        assert!(bc.get_account_by_id("satoshi".to_string()).is_some());
+        assert!(bc.get_account_by_id("alice".to_string()).is_some());
+        assert!(bc.get_account_by_id("bob".to_string()).is_some());
+        assert!(bc.append_block(block).is_ok());
+
+        let mut block = Block::new(bc.get_last_block_hash());
+
+        let tx_tr_from_satoshi_alice = Transaction::new(
+            TransactionData::Transfer{
+                to: "alice".to_string(),
+                amount: 10_000_000,
+            },
+            Some("satoshi".to_string())
+        );
+
+        let tx_tr_from_satoshi_to_bob = Transaction::new(
+            TransactionData::Transfer{
+                to: "bob".to_string(),
+                amount: 50_000_000,
+            },
+            Some("satoshi".to_string())
+        );
+
+        let tx_tr_from_bob_to_sastoshi = Transaction::new(
+            TransactionData::Transfer{
+                to: "satoshi".to_string(),
+                amount: 30_000_000,
+            },
+            Some("bob".to_string())
+        );
+
+        block.set_nonce(3);
+        block.add_transaction(tx_tr_from_satoshi_alice);
+        block.add_transaction(tx_tr_from_satoshi_to_bob);
+        block.add_transaction(tx_tr_from_bob_to_sastoshi);
+
+        assert!(bc.append_block(block).is_ok());
+        // assert!(bc.get_account_by_id("alice".to_string()).is_none());
+        // assert!(bc.get_account_by_id("bob".to_string()).is_none());
+    }
+
+    #[test]
+    fn test_transfers_fails() {
+        let mut bc = Blockchain::new();
+
+        let tx_create_account = Transaction::new(
+            TransactionData::CreateAccount("satoshi".to_string()),
+            None
+        );
+        let tx_mint_initial_supply = Transaction::new(
+            TransactionData::MintInitialSupply {
+                to: "satoshi".to_string(),
+                amount: 100_000_000,
+            },
+            None,
+        );
+        let mut block = Block::new(None);
+        block.set_nonce(1);
+        block.add_transaction(tx_create_account);
+        block.add_transaction(tx_mint_initial_supply);
+
+        assert!(bc.append_block(block).is_ok());
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        let tx_create_alice = Transaction::new(
+            TransactionData::CreateAccount("alice".to_string()),
+            None
+        );
+        let tx_create_bob = Transaction::new(
+            TransactionData::CreateAccount("bob".to_string()),
+            None
+        );
+        block.set_nonce(2);
+        block.add_transaction(tx_create_alice);
+        block.add_transaction(tx_create_bob);
+        assert!(bc.append_block(block).is_ok());
+
+        assert!(bc.get_account_by_id("satoshi".to_string()).is_some());
+        assert!(bc.get_account_by_id("alice".to_string()).is_some());
+        assert!(bc.get_account_by_id("bob".to_string()).is_some());
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        let tx_tr_self = Transaction::new(
+            TransactionData::Transfer{
+                to: "satoshi".to_string(),
+                amount: 10_000_000,
+            },
+            Some("satoshi".to_string())
+        );
+        block.set_nonce(3);
+        block.add_transaction(tx_tr_self);
+        assert!(bc.append_block(block).is_err());
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        let tx_tr_gt_balance = Transaction::new(
+            TransactionData::Transfer{
+                to: "satoshi".to_string(),
+                amount: 100_000_000_000,
+            },
+            Some("satoshi".to_string())
+        );
+        block.set_nonce(4);
+        block.add_transaction(tx_tr_gt_balance);
+        assert!(bc.append_block(block).is_err());
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        let tx_tr_from_satoshi_to_invalid_account = Transaction::new(
+            TransactionData::Transfer{
+                to: "invalid".to_string(),
+                amount: 1,
+            },
+            Some("satoshi".to_string())
+        );
+        block.set_nonce(5);
+        block.add_transaction(tx_tr_from_satoshi_to_invalid_account);
+        assert!(bc.append_block(block).is_err());
+        // assert!(bc.get_account_by_id("alice".to_string()).is_none());
+        // assert!(bc.get_account_by_id("bob".to_string()).is_none());
+    }
 }
