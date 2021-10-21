@@ -53,42 +53,60 @@ impl Transaction {
             // 2. Check sender balance
             // 3. Change sender/receiver balances and save to state
             // 4. Test
-            TransactionData::Transfer { to, amount } => match &self.from {
-                Some(from) => {
-                    if from == to {
-                        return Err("Transfer to yourself.".to_string());
-                    }
-                    match state.get_account_by_id_mut(from.clone()) {
-                        Some(sender) => match sender.balance {
-                            balance if &balance >= amount => {
-                                match sender.balance.checked_sub(*amount) {
-                                    Some(balance) => {
-                                        sender.balance = balance;
-                                        match state.get_account_by_id_mut(to.clone()) {
-                                            Some(receiver) => {
-                                                match receiver.balance.checked_add(*amount) {
-                                                    Some(balance) => {
-                                                        receiver.balance = balance;
-                                                        Ok(())
-                                                    }
-                                                    None => {
-                                                        Err("Transfer amount overflow.".to_string())
-                                                    }
-                                                }
-                                            }
-                                            None => Err("Invalid receiver account.".to_string()),
-                                        }
-                                    }
-                                    None => Err("Transfer amount overflow.".to_string()),
-                                }
-                            }
-                            _ => Err("Sender doesn't have enough currency.".to_string()),
-                        },
-                        None => Err("Invalid sender account.".to_string()),
-                    }
+            TransactionData::Transfer { to, amount } => {
+                if Some(&self.from).is_none() {
+                    return Err("Invalid sender id.".to_string());
                 }
-                None => Err("Invalid sender account id.".to_string()),
-            },
+
+                let from = &self.from.as_ref().unwrap().clone();
+
+                if from.eq(to) {
+                    return Err("Transfer to yourself.".to_string());
+                }
+
+                let sender;
+                match state.get_account_by_id(from.clone()) {
+                    Some(account) => {
+                        sender = account;
+                    },
+                    None => return Err("Invalid sender account.".to_string())
+                }
+
+                let receiver;
+                match state.get_account_by_id(to.to_string()) {
+                    Some(account) => {
+                        receiver = account;
+                    },
+                    None => return Err("Invalid receiver account.".to_string())
+                }
+
+                if &sender.balance < amount {
+                    return Err("Sender doesn't have enough currency.".to_string());
+                }
+
+                let balance;
+                match receiver.balance.checked_add(*amount) {
+                    Some(_balance) => {
+                        balance = _balance;
+                    },
+                    None => return Err("Transfer amount overflow.".to_string()),
+                }
+
+                match state.get_account_by_id_mut(from.clone()) {
+                    Some(sender) => {
+                        sender.balance -= *amount;
+                    }
+                    None => return Err("Invalid sender account.".to_string())
+                }
+
+                match state.get_account_by_id_mut(to.to_string()) {
+                    Some(receiver) => {
+                        receiver.balance = balance;
+                    }
+                    None => return Err("Invalid receiver account.".to_string())
+                }
+                Ok(())
+            }
         }
     }
 }
