@@ -34,7 +34,10 @@ impl Transaction {
         //TODO Task 2: Implement signature
         match &self.data {
             TransactionData::CreateAccount(account_id) => {
-                state.create_account(account_id.clone(), AccountType::User)
+                state.create_account(
+                    account_id.clone(),
+                    AccountType::User
+                )
             }
             TransactionData::MintInitialSupply { to, amount } => {
                 if !is_genesis {
@@ -54,8 +57,8 @@ impl Transaction {
             // 3. Change sender/receiver balances and save to state
             // 4. Test
             TransactionData::Transfer { to, amount } => {
-                if Some(&self.from).is_none() {
-                    return Err("Invalid sender id.".to_string());
+                if self.from.is_none() {
+                    return Err("Invalid sender account id.".to_string());
                 }
 
                 let from = &self.from.as_ref().unwrap().clone();
@@ -68,16 +71,16 @@ impl Transaction {
                 match state.get_account_by_id(from.clone()) {
                     Some(account) => {
                         sender = account;
-                    },
-                    None => return Err("Invalid sender account.".to_string())
+                    }
+                    None => return Err("Invalid sender account.".to_string()),
                 }
 
                 let receiver;
                 match state.get_account_by_id(to.to_string()) {
                     Some(account) => {
                         receiver = account;
-                    },
-                    None => return Err("Invalid receiver account.".to_string())
+                    }
+                    None => return Err("Invalid receiver account.".to_string()),
                 }
 
                 if &sender.balance < amount {
@@ -88,7 +91,7 @@ impl Transaction {
                 match receiver.balance.checked_add(*amount) {
                     Some(_balance) => {
                         balance = _balance;
-                    },
+                    }
                     None => return Err("Transfer amount overflow.".to_string()),
                 }
 
@@ -96,14 +99,14 @@ impl Transaction {
                     Some(sender) => {
                         sender.balance -= *amount;
                     }
-                    None => return Err("Invalid sender account.".to_string())
+                    None => return Err("Invalid sender account.".to_string()),
                 }
 
                 match state.get_account_by_id_mut(to.to_string()) {
                     Some(receiver) => {
                         receiver.balance = balance;
                     }
-                    None => return Err("Invalid receiver account.".to_string())
+                    None => return Err("Invalid receiver account.".to_string()),
                 }
                 Ok(())
             }
