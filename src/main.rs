@@ -2,7 +2,6 @@ use blockchain_workshop::traits::Hashable;
 use blockchain_workshop::types::{Transaction, TransactionData};
 use ed25519_dalek::{Keypair, Signature, Signer, Verifier};
 
-
 fn main() {
     let keypair_bob = Keypair::generate(&mut rand::rngs::OsRng {});
     let tx = Transaction::new(
@@ -26,6 +25,7 @@ fn main() {
         Some("bob".to_string()),
     );
 
+    dbg!(Signature::from(signature_bytes));
     dbg!(pub_key_bob
         .verify(
             tx_invalid.hash().as_bytes(),

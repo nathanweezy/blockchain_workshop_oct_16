@@ -1,7 +1,11 @@
 use crate::traits::{Hashable, WorldState};
-use crate::types::{AccountId, AccountType, Balance, Error, Hash, Timestamp};
+use crate::types::{
+    Account, AccountId, AccountType, Balance, Error, Hash, PublicKeyBytes, SignatureBytes,
+    Timestamp,
+};
 use blake2::digest::FixedOutput;
 use blake2::{Blake2s, Digest};
+use ed25519_dalek::{PublicKey, Signature, Verifier};
 
 #[derive(Debug, Clone)]
 pub struct Transaction {
@@ -9,12 +13,12 @@ pub struct Transaction {
     timestamp: Timestamp,
     from: Option<AccountId>,
     pub(crate) data: TransactionData,
-    signature: Option<String>,
+    signature: Option<SignatureBytes>,
 }
 
 #[derive(Debug, Clone)]
 pub enum TransactionData {
-    CreateAccount(AccountId),
+    CreateAccount(AccountId, PublicKeyBytes),
     MintInitialSupply { to: AccountId, amount: Balance },
     Transfer { to: AccountId, amount: Balance },
 }
@@ -33,11 +37,8 @@ impl Transaction {
     pub fn execute<T: WorldState>(&self, state: &mut T, is_genesis: bool) -> Result<(), Error> {
         //TODO Task 2: Implement signature
         match &self.data {
-            TransactionData::CreateAccount(account_id) => {
-                state.create_account(
-                    account_id.clone(),
-                    AccountType::User
-                )
+            TransactionData::CreateAccount(account_id, public_key) => {
+                state.create_account(account_id.clone(), AccountType::User, public_key.clone())
             }
             TransactionData::MintInitialSupply { to, amount } => {
                 if !is_genesis {
@@ -67,33 +68,26 @@ impl Transaction {
                     return Err("Transfer to yourself.".to_string());
                 }
 
-                let sender;
-                match state.get_account_by_id(from.clone()) {
-                    Some(account) => {
-                        sender = account;
-                    }
-                    None => return Err("Invalid sender account.".to_string()),
-                }
+                let sender = state
+                    .get_account_by_id(from.clone())
+                    .ok_or("Invalid sender account.".to_string())?;
 
-                let receiver;
-                match state.get_account_by_id(to.to_string()) {
-                    Some(account) => {
-                        receiver = account;
-                    }
-                    None => return Err("Invalid receiver account.".to_string()),
-                }
+                let receiver = state
+                    .get_account_by_id(to.to_string())
+                    .ok_or("Invalid receiver account.".to_string())?;
 
-                if &sender.balance < amount {
+                if sender.balance < *amount {
                     return Err("Sender doesn't have enough currency.".to_string());
                 }
 
-                let balance;
-                match receiver.balance.checked_add(*amount) {
-                    Some(_balance) => {
-                        balance = _balance;
-                    }
-                    None => return Err("Transfer amount overflow.".to_string()),
+                if !self.verify(&sender.clone()) {
+                    return Err("Signature invalid.".to_string());
                 }
+
+                let balance = receiver
+                    .balance
+                    .checked_add(*amount)
+                    .ok_or("Transfer amount overflow.".to_string())?;
 
                 match state.get_account_by_id_mut(from.clone()) {
                     Some(sender) => {
@@ -111,6 +105,26 @@ impl Transaction {
                 Ok(())
             }
         }
+    }
+
+    pub fn verify(&self, sender: &Account) -> bool {
+        match self.signature {
+            Some(signature) => {
+                let pub_key = PublicKey::from_bytes(sender.public_key.as_ref().clone());
+                if pub_key.is_ok() {
+                    return pub_key
+                        .unwrap()
+                        .verify(self.hash().as_bytes(), &Signature::from(signature))
+                        .is_ok();
+                }
+            }
+            None => return false,
+        }
+        false
+    }
+
+    pub fn set_sign(&mut self, signature: SignatureBytes) {
+        self.signature = Some(signature);
     }
 }
 
