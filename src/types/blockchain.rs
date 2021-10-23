@@ -1,15 +1,22 @@
-use crate::traits::{Hashable, WorldState};
-use crate::types::{
-    Account, AccountId, AccountType, Block, Chain, Error, Hash, PublicKeyBytes, Transaction,
-};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+
+use crate::traits::{Hashable, WorldState};
+use crate::types::{
+    Account, AccountId, AccountType, Block, Chain, Difficulty, Error, Hash, MAX_TARGET, PublicKeyBytes,
+    Target, Timestamp, Transaction,
+};
+use crate::utils::{get_bits_from_hash, get_timestamp};
 
 #[derive(Default, Debug)]
 pub struct Blockchain {
     blocks: Chain<Block>,
     accounts: HashMap<AccountId, Account>,
     transaction_pool: Vec<Transaction>,
+    pub(crate) target: Target,
+    difficulty: Difficulty,
+    first_block_timestamp: Timestamp,
+    last_block_timestamp: Timestamp,
 }
 
 impl WorldState for Blockchain {
@@ -39,7 +46,11 @@ impl WorldState for Blockchain {
 
 impl Blockchain {
     pub fn new() -> Self {
-        Default::default()
+        Self {
+            target: format!("{:x}", MAX_TARGET),
+            difficulty: 1,
+            ..Default::default()
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -69,6 +80,26 @@ impl Blockchain {
 
         // TODO Task 3: Append block only if block.hash < target
         // Adjust difficulty of target each block generation (epoch)
+        if !is_genesis {
+            let actual_time = self.last_block_timestamp - self.first_block_timestamp;
+            let expected = 2016 * 10 * 60;
+            let mut difficulty = (actual_time / expected) as i32;
+            difficulty = if difficulty > 4 { 4 } else if difficulty < 0.25 as i32 { 0.25 as i32 } else { difficulty };
+
+            // dbg!(&self.target.clone());
+            let current_target = i32::from_str_radix(&self.target.clone(), 16).unwrap();
+            let mut new_target = current_target * difficulty;
+            new_target = if new_target > MAX_TARGET {
+                MAX_TARGET
+            } else {
+                new_target
+            };
+            if !(get_bits_from_hash(block.hash.as_ref().unwrap().clone()) < new_target.clone()) {
+                return Err("Hash greater than target".to_string());
+            }
+            self.target = format!("{:x}", new_target.clone()).to_string();
+        }
+        self.last_block_timestamp = get_timestamp();
         self.blocks.append(block);
         Ok(())
     }
@@ -118,10 +149,12 @@ impl Blockchain {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use ed25519_dalek::{Keypair, Signer};
+
     use crate::types::TransactionData;
     use crate::utils::{append_block, append_block_with_tx};
-    use ed25519_dalek::{Keypair, Signer};
+
+    use super::*;
 
     #[test]
     fn test_new() {
@@ -132,7 +165,6 @@ mod tests {
     #[test]
     fn test_append() {
         let bc = &mut Blockchain::new();
-
         append_block(bc, 1);
         let block = append_block(bc, 2);
 
@@ -599,5 +631,64 @@ mod tests {
         block.set_nonce(3);
         block.add_transaction(tx_tr_from_satoshi_to_bob_wtih_fake_data);
         assert!(bc.append_block(block).is_err());
+    }
+
+    #[test]
+    fn test_mining() {
+        let mut bc = Blockchain::new();
+
+        let keypair_satoshi = Keypair::generate(&mut rand::rngs::OsRng {});
+        let tx_create_satoshi = Transaction::new(
+            TransactionData::CreateAccount(
+                "satoshi".to_string(),
+                keypair_satoshi.public.as_bytes().clone(),
+            ),
+            None,
+        );
+        let tx_mint_initial_supply = Transaction::new(
+            TransactionData::MintInitialSupply {
+                to: "satoshi".to_string(),
+                amount: 100_000_000,
+            },
+            None,
+        );
+        let mut block = Block::new(None);
+        block.add_transaction(tx_create_satoshi);
+        block.add_transaction(tx_mint_initial_supply);
+        block.mine(bc.target.clone());
+        assert!(bc.append_block(block).is_ok());
+        dbg!(bc.target.clone());
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        let keypair_alice = Keypair::generate(&mut rand::rngs::OsRng {});
+        let tx_create_alice = Transaction::new(
+            TransactionData::CreateAccount(
+                "alice".to_string(),
+                keypair_alice.public.as_bytes().clone(),
+            ),
+            None,
+        );
+        block.add_transaction(tx_create_alice);
+        block.mine(bc.target.clone());
+        assert!(bc.append_block(block).is_ok());
+        dbg!(bc.target.clone());
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        let keypair_bob = Keypair::generate(&mut rand::rngs::OsRng {});
+        let tx_create_bob = Transaction::new(
+            TransactionData::CreateAccount(
+                "bob".to_string(),
+                keypair_bob.public.as_bytes().clone(),
+            ),
+            None,
+        );
+
+        block.add_transaction(tx_create_bob);
+        block.mine(bc.target.clone());
+        assert!(bc.append_block(block).is_ok());
+        dbg!(bc.target.clone());
+        assert!(bc.get_account_by_id("satoshi".to_string()).is_some());
+        assert!(bc.get_account_by_id("alice".to_string()).is_some());
+        assert!(bc.get_account_by_id("bob".to_string()).is_some());
     }
 }

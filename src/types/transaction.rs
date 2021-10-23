@@ -1,11 +1,13 @@
+use blake2::{Blake2s, Digest};
+use blake2::digest::FixedOutput;
+use ed25519_dalek::{PublicKey, Signature, Verifier};
+
 use crate::traits::{Hashable, WorldState};
 use crate::types::{
     Account, AccountId, AccountType, Balance, Error, Hash, PublicKeyBytes, SignatureBytes,
     Timestamp,
 };
-use blake2::digest::FixedOutput;
-use blake2::{Blake2s, Digest};
-use ed25519_dalek::{PublicKey, Signature, Verifier};
+use crate::utils::get_timestamp;
 
 #[derive(Debug, Clone)]
 pub struct Transaction {
@@ -27,7 +29,7 @@ impl Transaction {
     pub fn new(data: TransactionData, from: Option<AccountId>) -> Self {
         Self {
             nonce: 0,
-            timestamp: 0,
+            timestamp: get_timestamp(),
             from,
             data,
             signature: None,

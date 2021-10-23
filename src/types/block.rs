@@ -1,11 +1,14 @@
-use crate::traits::Hashable;
-use crate::types::{Hash, Transaction};
-use blake2::digest::FixedOutput;
 use blake2::{Blake2s, Digest};
+use blake2::digest::FixedOutput;
+
+use crate::traits::Hashable;
+use crate::types::{Hash, Target, Timestamp, Transaction};
+use crate::utils::{get_bits_from_hash, get_timestamp};
 
 #[derive(Default, Debug, Clone)]
 pub struct Block {
     nonce: u128,
+    timestamp: Timestamp,
     pub(crate) hash: Option<Hash>,
     pub(crate) prev_hash: Option<Hash>,
     pub(crate) transactions: Vec<Transaction>,
@@ -15,10 +18,10 @@ impl Block {
     pub fn new(prev_hash: Option<Hash>) -> Self {
         let mut block = Block {
             prev_hash,
+            timestamp: get_timestamp(),
             ..Default::default()
         };
         block.update_hash();
-
         block
     }
 
@@ -39,6 +42,16 @@ impl Block {
     fn update_hash(&mut self) {
         self.hash = Some(self.hash());
     }
+
+    pub fn mine(&mut self, target: Target) {
+        let mut nonce = 1;
+        let target = i32::from_str_radix(&target.clone(), 16).unwrap();
+        while !(get_bits_from_hash(self.hash.as_ref().unwrap().clone()) < target) {
+            nonce += 1;
+            self.set_nonce(nonce.clone());
+            println!("{} {}", nonce, &self.hash.as_ref().unwrap().clone());
+        }
+    }
 }
 
 impl Hashable for Block {
@@ -55,9 +68,11 @@ impl Hashable for Block {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::types::TransactionData;
     use ed25519_dalek::Keypair;
+
+    use crate::types::TransactionData;
+
+    use super::*;
 
     #[test]
     fn test_creation() {
