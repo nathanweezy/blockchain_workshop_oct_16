@@ -21,6 +21,8 @@ pub type PublicKeyBytes = [u8; PUBLIC_KEY_LENGTH];
 pub type SecretKeyBytes = [u8; SECRET_KEY_LENGTH];
 pub type SignatureBytes = [u8; SIGNATURE_LENGTH];
 pub type Target = String;
-pub type Difficulty = u128;
+pub type Bits = i32;
+pub type Difficulty = i32;
 
-pub const MAX_TARGET: i32 = 0x1d00ffff;
+
+pub const MAX_TARGET: Bits = 0x1d00ffff;

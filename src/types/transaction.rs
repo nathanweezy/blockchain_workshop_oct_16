@@ -1,6 +1,6 @@
 use blake2::{Blake2s, Digest};
 use blake2::digest::FixedOutput;
-use ed25519_dalek::{PublicKey, Signature, Verifier};
+use ed25519_dalek::{Keypair, PublicKey, Signature, Signer, Verifier};
 
 use crate::traits::{Hashable, WorldState};
 use crate::types::{
@@ -127,6 +127,12 @@ impl Transaction {
 
     pub fn set_sign(&mut self, signature: SignatureBytes) {
         self.signature = Some(signature);
+    }
+
+    pub fn sign(&mut self, keypair: &Keypair) {
+        self.set_sign(
+            keypair.sign(self.hash().as_bytes()).to_bytes(),
+        );
     }
 }
 

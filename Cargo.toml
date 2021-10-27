@@ -7,6 +7,6 @@ edition = "2018"
 
 [dependencies]
 blake2 = "*"
-hex="*"
+hex = "*"
 rand = "0.7.0"
-ed25519-dalek="1.0.1"
+ed25519-dalek = "1.0.1"
