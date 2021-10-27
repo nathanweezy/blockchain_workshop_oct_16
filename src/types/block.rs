@@ -47,8 +47,8 @@ impl Block {
         let mut nonce = 1;
         let target = Bits::from_str_radix(&target.clone(), 16).unwrap();
         while !(get_bits_from_hash(self.hash.as_ref().unwrap().clone()) < target) {
-            nonce += 1;
-            self.set_nonce(nonce.clone());
+            nonce += 11;
+            self.set_nonce(nonce);
             // println!("{} {} {} bits {}", nonce, &self.hash.as_ref().unwrap().clone(), get_bits_from_hash(self.hash.as_ref().unwrap().clone()), format!("{:2x}", get_bits_from_hash(self.hash.as_ref().unwrap().clone())));
         }
         println!("GOT IT {} {}", nonce, &self.hash.as_ref().unwrap().clone());
@@ -71,7 +71,7 @@ impl Hashable for Block {
 mod tests {
     use ed25519_dalek::Keypair;
 
-    use crate::types::TransactionData;
+    use crate::{types::{Blockchain, TransactionData}, utils::{create_account_tx, generate_account_id, mint_initial_supply}};
 
     use super::*;
 
@@ -113,5 +113,34 @@ mod tests {
         let hash2 = block.hash();
 
         assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_mining() {
+        let mut bc = Blockchain::new();
+
+        let account_id_satoshi = "satoshi".to_string();
+        let (_, tx_create_satoshi) = create_account_tx(account_id_satoshi.clone());
+        let tx_mint_initial_supply = mint_initial_supply(account_id_satoshi.clone(), 100_000_000);
+
+        let mut block = Block::new(bc.get_last_block_hash());
+        block.add_transaction(tx_create_satoshi);
+        block.add_transaction(tx_mint_initial_supply);
+        block.mine(bc.target.clone());
+        assert!(bc.append_block(block).is_ok());
+
+        let mut count = 0;
+        loop {
+            count += 1;
+            let mut block = Block::new(bc.get_last_block_hash());
+            let (_, tx_create_alice) = create_account_tx(generate_account_id());
+            block.add_transaction(tx_create_alice);
+            block.mine(bc.target.clone());
+            assert!(bc.append_block(block).is_ok());
+            if count == 10 {
+                break;
+            }
+        }
+
     }
 }

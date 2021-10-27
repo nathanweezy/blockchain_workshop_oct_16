@@ -2,10 +2,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use crate::traits::{Hashable, WorldState};
-use crate::types::{
-    Account, AccountId, AccountType, Bits, Block, Chain, Difficulty, Error, Hash, MAX_TARGET,
-    PublicKeyBytes, Target, Timestamp, Transaction,
-};
+use crate::types::{Account, AccountId, AccountType, Bits, Block, Chain, Difficulty, EXPECTED_TIME, Error, Hash, MAX_TARGET, PublicKeyBytes, Target, Timestamp, Transaction};
 use crate::utils::{get_bits_from_hash, get_timestamp};
 
 #[derive(Default, Debug)]
@@ -15,7 +12,7 @@ pub struct Blockchain {
     transaction_pool: Vec<Transaction>,
     pub(crate) target: Target,
     difficulty: Difficulty,
-    first_block_timestamp: Timestamp,
+    prev_block_timestamp: Timestamp,
     last_block_timestamp: Timestamp,
 }
 
@@ -48,7 +45,7 @@ impl Blockchain {
     pub fn new() -> Self {
         Self {
             target: format!("{:x}", MAX_TARGET),
-            difficulty: 1,
+            difficulty: 0xffff as f32,
             ..Default::default()
         }
     }
@@ -81,17 +78,16 @@ impl Blockchain {
         // TODO Task 3: Append block only if block.hash < target
         // Adjust difficulty of target each block generation (epoch)
         if !is_genesis {
-            self.update_difficulty();
-            self.update_target();
             let target = Bits::from_str_radix(&self.target.clone(), 16).unwrap();
             if !(get_bits_from_hash(block.hash.as_ref().unwrap().clone()) < target) {
                 return Err("Hash greater than target".to_string());
             }
+            self.last_block_timestamp = get_timestamp();
+            self.update_target();
+            self.update_difficulty();
         }
-        if is_genesis {
-            self.first_block_timestamp = get_timestamp();
-        }
-        self.last_block_timestamp = get_timestamp();
+
+        self.prev_block_timestamp = get_timestamp();
         self.blocks.append(block);
         Ok(())
     }
@@ -139,18 +135,21 @@ impl Blockchain {
     }
 
     pub fn update_difficulty(&mut self) {
-        let actual_time = (self.last_block_timestamp.clone() - self.first_block_timestamp.clone()) as i32;
-        let expected = (2016 * 10 * 60) as Difficulty;
-        self.difficulty = actual_time / expected;
+        let current_target = Bits::from_str_radix(&self.target.clone(), 16).unwrap();
+        self.difficulty = MAX_TARGET as f32 / current_target as f32;
         println!("new difficulty {}", self.difficulty.clone());
     }
 
     pub fn update_target(&mut self) {
+        let actual_time = (self.last_block_timestamp.clone() - self.prev_block_timestamp.clone()) as i32;
+        let mut ratio = actual_time as f32 / EXPECTED_TIME as f32;
+        ratio = if ratio > 4. { 4. } else if ratio < 0.25 { 0.25 } else { ratio };
+
         let current_target = Bits::from_str_radix(&self.target.clone(), 16).unwrap();
-        let mut new_target = current_target * self.difficulty;
+        let mut new_target = (current_target as f32 * ratio) as i32;
         new_target = if new_target > MAX_TARGET { MAX_TARGET } else { new_target };
         self.target = format!("{:x}", new_target);
-        println!("new target {}", self.target.clone());
+        println!("new target {} with ratio {}", self.target.clone(), ratio.clone());
     }
 }
 
@@ -488,54 +487,5 @@ mod tests {
                 tx_tr_from_satoshi_to_bob_wtih_fake_data
             ]).is_err()
         );
-    }
-
-    #[test]
-    fn test_mining() {
-        let mut bc = Blockchain::new();
-
-        let account_id_satoshi = "satoshi".to_string();
-        let (_, tx_create_satoshi) = create_account_tx(account_id_satoshi.clone());
-        let tx_mint_initial_supply = mint_initial_supply(account_id_satoshi.clone(), 100_000_000);
-
-        let mut block = Block::new(bc.get_last_block_hash());
-        block.add_transaction(tx_create_satoshi);
-        block.add_transaction(tx_mint_initial_supply);
-        block.mine(bc.target.clone());
-
-        assert!(bc.append_block(block).is_ok());
-        dbg!(bc.target.clone());
-
-        // let mut block = Block::new(bc.get_last_block_hash());
-        // let keypair_alice = Keypair::generate(&mut rand::rngs::OsRng {});
-        // let tx_create_alice = Transaction::new(
-        //     TransactionData::CreateAccount(
-        //         "alice".to_string(),
-        //         keypair_alice.public.as_bytes().clone(),
-        //     ),
-        //     None,
-        // );
-        // block.add_transaction(tx_create_alice);
-        // // block.mine(bc.target.clone());
-        // assert!(bc.append_block(block).is_ok());
-        // dbg!(bc.target.clone());
-        //
-        // let mut block = Block::new(bc.get_last_block_hash());
-        // let keypair_bob = Keypair::generate(&mut rand::rngs::OsRng {});
-        // let tx_create_bob = Transaction::new(
-        //     TransactionData::CreateAccount(
-        //         "bob".to_string(),
-        //         keypair_bob.public.as_bytes().clone(),
-        //     ),
-        //     None,
-        // );
-        //
-        // block.add_transaction(tx_create_bob);
-        // // block.mine(bc.target.clone());
-        // assert!(bc.append_block(block).is_ok());
-        // dbg!(bc.target.clone());
-        // assert!(bc.get_account_by_id("satoshi".to_string()).is_some());
-        // assert!(bc.get_account_by_id("alice".to_string()).is_some());
-        // assert!(bc.get_account_by_id("bob".to_string()).is_some());
     }
 }

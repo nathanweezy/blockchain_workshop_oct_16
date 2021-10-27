@@ -113,7 +113,6 @@ pub fn append_block_with_tx(
 pub fn get_timestamp() -> Timestamp {
     let start = SystemTime::now();
     let since_the_epoch = start.duration_since(UNIX_EPOCH);
-
     since_the_epoch.unwrap().as_secs()
 }
 
