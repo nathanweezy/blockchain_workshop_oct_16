@@ -12,7 +12,7 @@ pub struct Blockchain {
     transaction_pool: Vec<Transaction>,
     pub(crate) target: Target,
     difficulty: Difficulty,
-    prev_block_timestamp: Timestamp,
+    first_block_timestamp: Timestamp,
     last_block_timestamp: Timestamp,
 }
 
@@ -87,7 +87,7 @@ impl Blockchain {
             self.update_difficulty();
         }
 
-        self.prev_block_timestamp = get_timestamp();
+        self.first_block_timestamp = get_timestamp();
         self.blocks.append(block);
         Ok(())
     }
@@ -141,10 +141,9 @@ impl Blockchain {
     }
 
     pub fn update_target(&mut self) {
-        let actual_time = (self.last_block_timestamp.clone() - self.prev_block_timestamp.clone()) as i32;
-        let mut ratio = actual_time as f32 / EXPECTED_TIME as f32;
+        let actual_time = (self.last_block_timestamp.clone() - self.first_block_timestamp.clone()) as i32;
+        let mut ratio = actual_time as f32 / (self.len() as i32 * EXPECTED_TIME) as f32;
         ratio = if ratio > 4. { 4. } else if ratio < 0.25 { 0.25 } else { ratio };
-
         let current_target = Bits::from_str_radix(&self.target.clone(), 16).unwrap();
         let mut new_target = (current_target as f32 * ratio) as i32;
         new_target = if new_target > MAX_TARGET { MAX_TARGET } else { new_target };

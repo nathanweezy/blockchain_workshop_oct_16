@@ -26,4 +26,4 @@ pub type Difficulty = f32;
 
 
 pub const MAX_TARGET: Bits = 0x1effffff;
-pub const EXPECTED_TIME: i32 = 5;
+pub const EXPECTED_TIME: i32 = 4;

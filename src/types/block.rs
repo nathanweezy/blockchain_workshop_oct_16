@@ -47,7 +47,7 @@ impl Block {
         let mut nonce = 1;
         let target = Bits::from_str_radix(&target.clone(), 16).unwrap();
         while !(get_bits_from_hash(self.hash.as_ref().unwrap().clone()) < target) {
-            nonce += 11;
+            nonce += 1;
             self.set_nonce(nonce);
             // println!("{} {} {} bits {}", nonce, &self.hash.as_ref().unwrap().clone(), get_bits_from_hash(self.hash.as_ref().unwrap().clone()), format!("{:2x}", get_bits_from_hash(self.hash.as_ref().unwrap().clone())));
         }
